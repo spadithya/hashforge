@@ -26,6 +26,9 @@ ENV/
 .DS_Store
 Thumbs.db
 
+# Local Claude onboarding (keep off GitHub)
+CLAUDE.md
+
 # Wordlists (way too big for git; symlink or download locally)
 wordlists/
 rockyou*
