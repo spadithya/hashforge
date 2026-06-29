@@ -1,0 +1,8 @@
+# hashforge dependencies
+# Keep this lean — most of the tool is stdlib.
+
+requests        # HIBP k-anonymity range API call (entropy --hibp)
+
+# Optional, only if you generate bcrypt/argon2 fixtures for the hash zoo:
+# bcrypt
+# argon2-cffi
