@@ -31,7 +31,9 @@ def cmd_entropy(args: argparse.Namespace) -> int:
     (a dict) and is responsible only for turning that dict into nice output.
     Logic in the module, presentation here.
     """
-    report = entropy.audit(args.password, check_hibp=args.hibp)
+    # Always compute the OFFLINE score first (this can't fail / needs no
+    # network), so a flaky --hibp lookup never robs us of the entropy report.
+    report = entropy.audit(args.password, check_hibp=False)
 
     # A small aligned key/value report. `:>13` right-pads the labels so the
     # values line up in a column regardless of label length.
@@ -40,22 +42,44 @@ def cmd_entropy(args: argparse.Namespace) -> int:
     print(f"{'entropy':>13} : {report['entropy_bits']} bits")
     print(f"{'strength':>13} : {report['strength']}")
 
-    # pwned_count is None when --hibp wasn't passed (Stage 3 wires the real
-    # lookup). We branch on the three meaningful states.
-    if report["pwned_count"] is None:
+    if not args.hibp:
         print(f"{'breached':>13} : (not checked — pass --hibp)")
-    elif report["pwned_count"] == 0:
+        return 0
+
+    # --hibp was requested: do the network lookup in isolation so we can show
+    # a clean message if the request fails (offline, timeout, requests missing)
+    # instead of dumping a stack trace at the user.
+    try:
+        count = entropy.hibp_pwned_count(args.password)
+    except Exception as exc:  # noqa: BLE001 — any failure here is non-fatal
+        print(f"{'breached':>13} : (check failed: {exc})")
+        return 0
+
+    if count == 0:
         print(f"{'breached':>13} : no — not found in HIBP")
     else:
-        print(f"{'breached':>13} : YES — seen {report['pwned_count']:,} times")
+        print(f"{'breached':>13} : YES — seen {count:,} times")
 
     return 0
 
 
 def cmd_identify(args: argparse.Namespace) -> int:
-    # Stage 2 — leave until entropy works.
-    print("identify: not built yet (stage 2)", file=sys.stderr)
-    return 1
+    """Print ranked algorithm guesses for a hash string."""
+    candidates = identify.identify(args.hash)
+
+    if not candidates:
+        print("no match — unrecognized hash format", file=sys.stderr)
+        return 1
+
+    # Header row, then one line per candidate. We show the cracking IDs too so
+    # this output flows straight into Stage 5 (`crack`).
+    print(f"{'algorithm':<14} {'confidence':<11} {'hashcat -m':<11} john --format")
+    print("-" * 56)
+    for c in candidates:
+        mode = "-" if c["hashcat_mode"] is None else c["hashcat_mode"]
+        print(f"{c['name']:<14} {c['confidence']:<11} {str(mode):<11} {c['john_format']}")
+
+    return 0
 
 
 def cmd_crack(args: argparse.Namespace) -> int:

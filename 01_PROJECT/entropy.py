@@ -129,10 +129,51 @@ HIBP_RANGE_URL = "https://api.pwnedpasswords.com/range/{prefix}"
 def hibp_pwned_count(password: str, *, timeout: float = 5.0) -> int:
     """Return how many times `password` appears in HIBP breaches (0 = clean).
 
-    Implemented in Stage 3. The k-anonymity flow will send ONLY the first 5
-    hex chars of the SHA-1 — never the password or full hash.
+    THE PRIVACY PROBLEM: we want to ask HIBP "is my password breached?"
+    without telling HIBP (or any eavesdropper) what the password is — or even
+    its full hash, since a full SHA-1 of a weak password is itself crackable.
+
+    THE SOLUTION — k-anonymity (a.k.a. the "range" API):
+      1. SHA-1 the password locally and uppercase the hex digest.
+      2. Split it: the first 5 chars are the PREFIX, the rest is the SUFFIX.
+      3. Send ONLY the 5-char prefix to HIBP.
+      4. HIBP replies with EVERY breached suffix that shares that prefix
+         (typically ~300-800 of them), each with a breach count.
+      5. We search that list LOCALLY for our suffix.
+
+    Because ~800 different passwords share any given 5-char prefix, HIBP can't
+    tell which one is ours — we're hidden in a crowd of `k` look-alikes. The
+    full hash never leaves the machine; the password certainly doesn't.
+    This privacy guarantee is non-negotiable for hashforge (see CLAUDE.md).
     """
-    raise NotImplementedError("hibp_pwned_count lands in Stage 3")
+    # Lazy import: `requests` is only needed for this online check. Importing
+    # it here (not at module top) means the offline entropy scoring still
+    # works even if `requests` isn't installed.
+    import requests
+
+    # Step 1: SHA-1 of the UTF-8 bytes, as uppercase hex. HIBP's API speaks
+    # uppercase hex, so we match that to compare strings directly.
+    sha1 = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
+
+    # Step 2: split into the part we send vs the part we keep.
+    prefix, suffix = sha1[:5], sha1[5:]
+
+    # Step 3: ask HIBP for everything under this prefix. Only `prefix` (5 hex
+    # chars) is ever transmitted.
+    resp = requests.get(HIBP_RANGE_URL.format(prefix=prefix), timeout=timeout)
+    resp.raise_for_status()  # turn an HTTP 4xx/5xx into a clear exception
+
+    # Step 4 + 5: the body is plain text, one "SUFFIX:COUNT" per line, e.g.
+    #     0018A45C4D1DEF81644B54AB7F969B88D65:1
+    #     00D4F6E8FA6EECAD2A3AA415EEC418D38EC:2
+    # We scan locally for our suffix and return its count.
+    for line in resp.text.splitlines():
+        line_suffix, _, count = line.partition(":")
+        if line_suffix == suffix:
+            return int(count)
+
+    # Our suffix wasn't in the list -> this password isn't in any HIBP breach.
+    return 0
 
 
 # ---------------------------------------------------------------------------
