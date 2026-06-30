@@ -1,0 +1,384 @@
+<title>hashforge · hash format reference</title>
+<meta name="description" content="How hashforge tells every hash format apart — by prefix, length, and charset.">
+<style>
+  :root {
+    --ground: #15181e;
+    --panel: #1e242e;
+    --panel-2: #252d39;
+    --ink: #e8e6e1;
+    --muted: #8b94a3;
+    --faint: #5d6675;
+    --ember: #e8833a;
+    --ember-soft: #f4a259;
+    --steel: #6fb3c9;
+    --line: rgba(255,255,255,.09);
+    --line-soft: rgba(255,255,255,.05);
+    --good: #5fb89a;
+    --warn: #e0a458;
+    --weak: #d9695f;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(900px 500px at 85% -10%, rgba(232,131,58,.08), transparent 60%),
+      radial-gradient(700px 400px at 10% 5%, rgba(111,179,201,.05), transparent 55%);
+  }
+
+  .wrap {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2.5rem) 5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--ember);
+    margin: 0 0 1rem;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5.5vw, 3.1rem);
+    line-height: 1.05;
+    font-weight: 680;
+    letter-spacing: -.02em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  h1 .dim { color: var(--faint); font-weight: 400; }
+
+  .lede {
+    font-size: 1.08rem;
+    color: var(--muted);
+    max-width: 60ch;
+    margin: 0;
+  }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: clamp(2.6rem, 6vw, 4rem); }
+
+  h2 {
+    font-size: 1.4rem;
+    letter-spacing: -.01em;
+    font-weight: 640;
+    margin: 0 0 .35rem;
+    display: flex;
+    align-items: baseline;
+    gap: .7rem;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: .8rem;
+    color: var(--ember);
+    letter-spacing: .1em;
+  }
+  .sec-note { color: var(--muted); margin: 0 0 1.4rem; max-width: 64ch; }
+
+  /* --- decision split --- */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.6rem;
+  }
+  @media (max-width: 620px) { .split { grid-template-columns: 1fr; } }
+
+  .branch {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.3rem 1.35rem 1.45rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .branch::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--bar, var(--ember));
+  }
+  .branch .test {
+    font-family: var(--mono);
+    font-size: .9rem;
+    color: var(--ink);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: .55rem .7rem;
+    display: inline-block;
+    margin-bottom: .9rem;
+  }
+  .branch h3 {
+    margin: 0 0 .3rem;
+    font-size: 1.05rem;
+    letter-spacing: -.01em;
+  }
+  .branch p { margin: 0; color: var(--muted); font-size: .94rem; }
+  .branch .signal {
+    margin-top: .9rem;
+    font-family: var(--mono);
+    font-size: .76rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--bar, var(--ember));
+  }
+
+  /* --- tables --- */
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: .9rem;
+    min-width: 640px;
+  }
+  thead th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    padding: .85rem 1rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+    background: var(--panel-2);
+  }
+  tbody td {
+    padding: .72rem 1rem;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(255,255,255,.018); }
+
+  .name { font-weight: 600; white-space: nowrap; }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .len { font-family: var(--mono); color: var(--ember-soft); font-variant-numeric: tabular-nums; }
+  .pre { font-family: var(--mono); color: var(--steel); }
+  .dimcell { color: var(--faint); }
+
+  /* badges */
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: .6rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: .14rem .42rem;
+    border-radius: 5px;
+    border: 1px solid currentColor;
+    vertical-align: middle;
+    margin-left: .45rem;
+  }
+  .badge.req { color: var(--ember); }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .78rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pill::before {
+    content: "";
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor;
+  }
+  .pill.weak { color: var(--weak); }
+  .pill.mid { color: var(--warn); }
+  .pill.good { color: var(--good); }
+
+  .conf-high { color: var(--good); }
+  .conf-medium { color: var(--warn); }
+  .conf-low { color: var(--faint); }
+
+  /* fast vs slow strip */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1.4rem;
+  }
+  @media (max-width: 620px) { .compare { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.3rem 1.4rem 1.45rem;
+  }
+  .card .tag {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    margin: 0 0 .55rem;
+  }
+  .card.fast .tag { color: var(--weak); }
+  .card.slow .tag { color: var(--good); }
+  .card h3 { margin: 0 0 .55rem; font-size: 1.08rem; }
+  .card p { margin: 0 0 .8rem; color: var(--muted); font-size: .93rem; }
+  .card ul { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .9rem; }
+  .card li { margin-bottom: .3rem; }
+  .card li b { color: var(--ink); font-weight: 600; font-family: var(--mono); font-size: .85rem; }
+
+  .callout {
+    margin-top: 1.5rem;
+    background: linear-gradient(180deg, rgba(232,131,58,.07), rgba(232,131,58,.02));
+    border: 1px solid rgba(232,131,58,.25);
+    border-radius: 12px;
+    padding: 1.15rem 1.3rem;
+    font-size: .95rem;
+  }
+  .callout b { color: var(--ember-soft); }
+  .callout .mono { color: var(--ink); }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--line);
+    color: var(--faint);
+    font-size: .82rem;
+    font-family: var(--mono);
+    letter-spacing: .03em;
+  }
+
+  .lead-in { animation: rise .6s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .lead-in { animation: none; } }
+</style>
+
+<div class="wrap">
+
+  <header class="lead-in">
+    <p class="eyebrow">hashforge · identify</p>
+    <h1>Telling hashes apart <span class="dim">by sight alone</span></h1>
+    <p class="lede">A hash is just a string — nothing in it says "I am MD5." <code>identify</code> reasons from three observable signals: <b>prefix</b>, <b>length</b>, and <b>charset</b>. Here is every format it recognizes, and exactly what separates them.</p>
+  </header>
+
+  <section>
+    <h2><span class="num">01</span> The one decision that splits everything</h2>
+    <p class="sec-note">Before counting anything, ask a single question: does the string label itself? That fork decides which signal you read next.</p>
+    <div class="split">
+      <div class="branch" style="--bar: var(--steel)">
+        <span class="test">starts with <b>$</b> or <b>{</b></span>
+        <h3>Structured / self-labeling</h3>
+        <p>Uses Modular Crypt Format — <span class="mono">$id$params$salt$digest</span>. The <span class="pre">$id$</span> names the scheme outright.</p>
+        <div class="signal">→ read the prefix · high confidence</div>
+      </div>
+      <div class="branch" style="--bar: var(--ember)">
+        <span class="test">all hex <b>0-9 a-f</b></span>
+        <h3>Bare digest</h3>
+        <p>No markings at all — just raw hex. The only thing to go on is how many characters there are.</p>
+        <div class="signal">→ count the length · sometimes ambiguous</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span> Bare digests — classified by length</h2>
+    <p class="sec-note">Every hex digit encodes 4 bits, so <b>hex length = output bits ÷ 4</b>. SHA-<b>256</b> → 256/4 = 64 chars. That ratio is the whole logic. Where a length is shared, <code>identify</code> returns ranked guesses rather than a false certainty.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Format</th><th>Length</th><th>Output bits</th><th>Confidence</th><th>hashcat -m</th><th>john --format</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">MD5 <span class="badge req">required</span></td><td class="len">32</td><td class="mono">128</td><td class="mono conf-high">high</td><td class="mono">0</td><td class="mono dimcell">raw-md5</td></tr>
+          <tr><td class="name">NTLM <span class="badge req">required</span></td><td class="len">32</td><td class="mono">128</td><td class="mono conf-medium">medium</td><td class="mono">1000</td><td class="mono dimcell">nt</td></tr>
+          <tr><td class="name">MD4</td><td class="len">32</td><td class="mono">128</td><td class="mono conf-low">low</td><td class="mono">900</td><td class="mono dimcell">raw-md4</td></tr>
+          <tr><td class="name">SHA-1 <span class="badge req">required</span></td><td class="len">40</td><td class="mono">160</td><td class="mono conf-high">high</td><td class="mono">100</td><td class="mono dimcell">raw-sha1</td></tr>
+          <tr><td class="name">RIPEMD-160</td><td class="len">40</td><td class="mono">160</td><td class="mono conf-low">low</td><td class="mono">6000</td><td class="mono dimcell">ripemd-160</td></tr>
+          <tr><td class="name">SHA-224</td><td class="len">56</td><td class="mono">224</td><td class="mono conf-high">high</td><td class="mono">1300</td><td class="mono dimcell">raw-sha224</td></tr>
+          <tr><td class="name">SHA-256 <span class="badge req">required</span></td><td class="len">64</td><td class="mono">256</td><td class="mono conf-high">high</td><td class="mono">1400</td><td class="mono dimcell">raw-sha256</td></tr>
+          <tr><td class="name">SHA3-256</td><td class="len">64</td><td class="mono">256</td><td class="mono conf-low">low</td><td class="mono">17600</td><td class="mono dimcell">raw-sha3-256</td></tr>
+          <tr><td class="name">SHA-384</td><td class="len">96</td><td class="mono">384</td><td class="mono conf-high">high</td><td class="mono">10800</td><td class="mono dimcell">raw-sha384</td></tr>
+          <tr><td class="name">SHA-512</td><td class="len">128</td><td class="mono">512</td><td class="mono conf-high">high</td><td class="mono">1700</td><td class="mono dimcell">raw-sha512</td></tr>
+          <tr><td class="name">Whirlpool</td><td class="len">128</td><td class="mono">512</td><td class="mono conf-low">low</td><td class="mono">6100</td><td class="mono dimcell">whirlpool</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <b>The unbreakable tie:</b> <span class="mono">MD5</span> and <span class="mono">NTLM</span> are both 32 hex chars with no prefix — <b>byte-for-byte indistinguishable</b>. Only context decides: a web-app DB leak leans MD5; a Windows <span class="mono">secretsdump</span> leans NTLM. That's why a 32-hex string returns both, ranked.
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">03</span> Structured hashes — classified by prefix</h2>
+    <p class="sec-note">These announce themselves. A leading tag is decisive, so each returns a single high-confidence answer — and these are the password hashes worth storing (salted, slow, tunable).</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Format</th><th>Prefix</th><th>Example head</th><th>hashcat -m</th><th>john --format</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">bcrypt <span class="badge req">required</span></td><td class="pre">$2a$ $2b$ $2y$</td><td class="mono dimcell">$2b$12$Ghv…</td><td class="mono">3200</td><td class="mono dimcell">bcrypt</td></tr>
+          <tr><td class="name">argon2id</td><td class="pre">$argon2id$</td><td class="mono dimcell">$argon2id$v=19$…</td><td class="mono dimcell">—</td><td class="mono dimcell">argon2</td></tr>
+          <tr><td class="name">argon2i</td><td class="pre">$argon2i$</td><td class="mono dimcell">$argon2i$v=19$…</td><td class="mono dimcell">—</td><td class="mono dimcell">argon2</td></tr>
+          <tr><td class="name">argon2d</td><td class="pre">$argon2d$</td><td class="mono dimcell">$argon2d$v=19$…</td><td class="mono dimcell">—</td><td class="mono dimcell">argon2</td></tr>
+          <tr><td class="name">sha512crypt</td><td class="pre">$6$</td><td class="mono dimcell">$6$rounds=5000$…</td><td class="mono">1800</td><td class="mono dimcell">sha512crypt</td></tr>
+          <tr><td class="name">sha256crypt</td><td class="pre">$5$</td><td class="mono dimcell">$5$rounds=5000$…</td><td class="mono">7400</td><td class="mono dimcell">sha256crypt</td></tr>
+          <tr><td class="name">md5crypt</td><td class="pre">$1$</td><td class="mono dimcell">$1$salt$…</td><td class="mono">500</td><td class="mono dimcell">md5crypt</td></tr>
+          <tr><td class="name">yescrypt</td><td class="pre">$y$</td><td class="mono dimcell">$y$j9T$…</td><td class="mono dimcell">—</td><td class="mono dimcell">crypt</td></tr>
+          <tr><td class="name">LDAP SSHA</td><td class="pre">{SSHA}</td><td class="mono dimcell">{SSHA}5en…</td><td class="mono">111</td><td class="mono dimcell">ssha</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">04</span> The distinction that actually matters</h2>
+    <p class="sec-note">You asked how <span class="mono">SHA-512</span> differs from <span class="mono">sha512crypt</span>. They share a number but live in opposite worlds — and this fast-vs-slow split is the real security story behind the whole table.</p>
+    <div class="compare">
+      <div class="card fast">
+        <p class="tag">● fast digests — wrong tool for passwords</p>
+        <h3>Built for speed</h3>
+        <p>General-purpose checksums. A GPU computes billions per second — which is exactly why they're a disaster for storing passwords, and fine for file integrity.</p>
+        <ul>
+          <li><b>MD5, SHA-1, SHA-256, SHA-512</b></li>
+          <li><b>NTLM</b> (raw MD4, unsalted)</li>
+          <li>no salt, no cost knob, no defense against brute force</li>
+        </ul>
+      </div>
+      <div class="card slow">
+        <p class="tag">● password hashes — built to resist</p>
+        <h3>Slow on purpose</h3>
+        <p>Designed to be expensive: salted, with a tunable cost (or memory-hardness) that blunts the GPU's advantage. This is what a password column should hold.</p>
+        <ul>
+          <li><b>bcrypt</b> — tunable cost factor</li>
+          <li><b>sha512crypt / sha256crypt</b> — thousands of rounds + salt</li>
+          <li><b>argon2 / yescrypt</b> — memory-hard, modern best practice</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">
+      <b>So:</b> <span class="mono">SHA-512</span> is a <b>raw 512-bit digest</b> — fast, no salt, 128 hex chars, no prefix. <span class="mono">sha512crypt</span> merely <i>uses</i> SHA-512 inside a deliberately slow, salted, thousands-of-rounds construction — and labels itself <span class="mono">$6$</span>. Same building block, opposite purpose.
+    </div>
+  </section>
+
+  <footer>
+    hashforge · M2 · identify reasons from prefix + length + charset only — it guesses form, never confirms. five formats are mission-required; the rest come free from the same logic.
+  </footer>
+
+</div>
