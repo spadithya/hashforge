@@ -83,9 +83,31 @@ def cmd_identify(args: argparse.Namespace) -> int:
 
 
 def cmd_crack(args: argparse.Namespace) -> int:
-    # Stage 3 — leave until identify works.
-    print("crack: not built yet (stage 3)", file=sys.stderr)
-    return 1
+    """Drive John/Hashcat against a hash file and report what cracked."""
+    try:
+        result = crack.crack(
+            args.hash_file,
+            engine=args.engine,
+            wordlist=args.wordlist,
+            rules=args.rules,
+            mode=args.mode,
+            mask=args.mask,
+        )
+    except (RuntimeError, ValueError, FileNotFoundError) as exc:
+        print(f"crack failed: {exc}", file=sys.stderr)
+        return 1
+
+    # Summary after the engine's own live output.
+    print(f"\n[hashforge] engine={result['engine']}  format={result['format']}  "
+          f"attack={result['attack']}")
+    if result["count"] == 0:
+        print("[hashforge] nothing cracked — try a bigger wordlist or rules")
+        return 1
+
+    print(f"[hashforge] cracked {result['count']}:")
+    for item in result["cracked"]:
+        print(f"    {item['hash']}  ->  {item['password']}")
+    return 0
 
 
 # --- argument parser --------------------------------------------------------
