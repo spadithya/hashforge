@@ -45,5 +45,7 @@ hashcat.restore
 # Local hash inputs (never commit real hashes or breached data)
 hashes/
 *.hash
-!samples/*.hash      # except curated demo fixtures
+# except curated demo fixtures (comment must be on its own line, or git
+# treats it as part of the negation pattern and the un-ignore silently fails)
+!samples/*.hash
 dumps/
