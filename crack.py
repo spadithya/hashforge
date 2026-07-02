@@ -19,6 +19,7 @@ test. Never point it at real breach dumps.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 
@@ -29,6 +30,22 @@ import identify
 # list because it's always present (rockyou usually ships gzipped).
 #DEFAULT_WORDLIST = "/usr/share/john/password.lst"
 DEFAULT_WORDLIST = "/usr/share/wordlists/rockyou.txt"
+
+# Where each engine records already-cracked hashes as "<hash>:<password>".
+JOHN_POTFILE = os.path.expanduser("~/.john/john.pot")
+HASHCAT_POTFILE = os.path.expanduser("~/.hashcat/hashcat.potfile")
+
+
+def _read_hashes(hash_file: str) -> list[str]:
+    """Return the hashes in `hash_file`, in order, skipping blanks/comments."""
+    hashes = []
+    with open(hash_file, "r", encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                hashes.append(line)
+    return hashes
+
 
 def _detect_format(hash_file: str) -> dict | None:
     """Peek at the first hash in the file and ask `identify` what it is.
@@ -89,32 +106,40 @@ def _build_hashcat_argv(hash_file, *, wordlist, rules, mode, mask, hc_mode):
     return argv
 
 
-def _show_cracked(engine, hash_file, *, fmt, hc_mode):
-    """Ask the engine which hashes are already cracked and parse the results.
+def _show_cracked(engine, hash_file):
+    """Map each input hash to its cracked password via the engine's potfile.
 
-    Both tools remember cracked hashes in a 'potfile', and both print them in
-    `hash:password` form via a --show flag. We run that AFTER the attack so the
-    report is the same whether we just cracked it now or in a previous run.
+    Why not `john --show`? For a bare hash file (no "user:hash" prefix) John
+    prints "?" where the username would be, so we'd lose the hash itself. The
+    potfile is the reliable source: it records the real hash next to each
+    password — John tags it (e.g. "$dynamic_0$<md5>"), Hashcat stores it
+    verbatim. So we read the potfile once and match each input hash against its
+    keys by substring, which works for both engines and both raw & salted hashes.
+
+    Reading the file also stays correct whether we cracked just now or in a
+    previous run (the potfile persists), and it naturally skips any hashes that
+    didn't crack — they simply won't match a potfile entry.
     """
-    if engine == "john":
-        argv = ["john", "--show"]
-        if fmt:
-            argv.append(f"--format={fmt}")
-        argv.append(hash_file)
-    else:
-        argv = ["hashcat", "-m", str(hc_mode), "--show", hash_file]
+    potfile = JOHN_POTFILE if engine == "john" else HASHCAT_POTFILE
+    if not os.path.exists(potfile):
+        return []
 
-    out = subprocess.run(argv, capture_output=True, text=True).stdout
+    # potfile lines are "<key>:<password>"; the key contains (or equals) the
+    # hash. partition() splits on the FIRST ":", so passwords with ":" survive.
+    pot = []
+    with open(potfile, "r", encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            key, sep, password = line.rstrip("\n").partition(":")
+            if sep:
+                pot.append((key.lower(), password))
 
     cracked = []
-    for line in out.splitlines():
-        line = line.strip()
-        # Skip blanks and John's trailing summary line ("1 password hash cracked…").
-        if not line or "password hash" in line:
-            continue
-        if ":" in line:
-            target, _, password = line.partition(":")
-            cracked.append({"hash": target, "password": password})
+    for h in _read_hashes(hash_file):
+        needle = h.lower()
+        for key, password in pot:
+            if needle in key:  # John tags the hash; Hashcat stores it as-is
+                cracked.append({"hash": h, "password": password})
+                break
     return cracked
 
 
@@ -148,7 +173,7 @@ def crack(hash_file, *, engine="john", wordlist=None, rules=None,
     print(f"[hashforge] {' '.join(argv)}\n")
     subprocess.run(argv)
 
-    cracked = _show_cracked(engine, hash_file, fmt=fmt, hc_mode=hc_mode)
+    cracked = _show_cracked(engine, hash_file)
     return {
         "engine": engine,
         "format": fmt or (f"-m {hc_mode}" if hc_mode is not None else "unknown"),

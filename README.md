@@ -2,8 +2,8 @@
 
 > Password entropy auditor + hash identifier + cracking harness, written in Python.
 
-**Status:** v1 — all three tools working; asciinema demo pending.
-**Mission 2 of the [cybersecurity-journey](../cyberjournal/LEARNING_PLAN.txt) portfolio.**
+**Status:** v1 — all three tools working; asciinema demo completed.
+**Mission 2 of the [cybersecurity-journey] portfolio.**
 **Region of the infrastructure map:** Cryptography, hashing, authentication.
 
 ---
@@ -176,7 +176,7 @@ If you just want to *use* the tool, you only need the `.py` files.
       (this build VM is memory-constrained; see *Known limitations*)
 - [x] README has a cheat-sheet of common hash formats
 - [x] Repo has a LICENSE, .gitignore, and clean commit history
-- [ ] **~90-second asciinema demo** recorded and embedded
+- [x] **~90-second asciinema demo** recorded and embedded
 - [x] `99_RECAP.md` is filled in
 
 ## Known limitations
@@ -193,10 +193,7 @@ If you just want to *use* the tool, you only need the `.py` files.
 
 _A ~90-second asciinema walkthrough will be recorded and embedded here:_
 
-```bash
-asciinema rec hashforge-demo.cast
-# entropy "password" --hibp   →  identify a hash  →  crack samples/weak_md5.hash
-```
+[![asciicast](https://asciinema.org/a/4oIBON0aP3smOHOG.svg)](https://asciinema.org/a/4oIBON0aP3smOHOG)
 
 ## Ethical use
 
@@ -204,9 +201,7 @@ Only audit or crack hashes from systems you own or are explicitly authorized to
 test (your own VMs, CTF platforms, authorized engagements). Never paste hashes
 from real breaches into any tool. hashforge's HIBP integration is deliberately
 k-anonymous — only the first 5 characters of the SHA-1 leave your machine — but
-that care is on you for everything else. See
-[Section 6 of the parent plan](../cyberjournal/LEARNING_PLAN.txt) for the
-legal/ethical guardrails.
+that care is on you for everything else.
 
 ## License
 
